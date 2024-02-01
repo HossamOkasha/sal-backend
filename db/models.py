@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import BOOLEAN
 from sqlalchemy.exc import SQLAlchemyError as exc
 import bcrypt
+from datetime import datetime
 
 
 class BaseModel:
@@ -165,5 +166,197 @@ class User(db.Model, BaseModel):
             "avatar": avatar,
             "questions_count": len(self.questions),
             "answers_count": len(self.answers),
+            "created_at": self.created_at,
+        }
+
+
+class Question(db.Model, BaseModel):
+    __tablename__ = "questions"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(), default=datetime.utcnow, nullable=False)
+    accepted_answer = Column(
+        Integer,
+        ForeignKey("answers.id", use_alter=True, ondelete="SET NULL"),
+        nullable=True,
+    )
+    answers = db.relationship(
+        "Answer",
+        backref="question",
+        order_by="desc(Answer.created_at)",
+        lazy=True,
+        foreign_keys="Answer.question_id",
+        cascade="all",
+    )
+
+    def __init__(self, user_id: int, content: str):
+        self.user_id = user_id
+        self.content = content
+
+    def vote(self, user: User, vote: bool):
+        """upvote or downvote a question"""
+        if self.hasvoted(user):
+            # update the vote itself if the user has already voted
+            vote_obj = self.votes.filter_by(user=user).first()
+            vote_obj.vote = vote
+        else:
+            # working with the association pattern as detailed in the docs
+            # ref: https://docs.sqlalchemy.org/en/14/orm/basic_relationships.html
+            vote = QuestionVote(vote=vote)
+            vote.user = user
+            self.votes.append(vote)
+        # update in either cases
+        self.update()
+
+    def unvote(self, user: User):
+        """remove specific user vote"""
+        self.votes.filter_by(user=user).delete()
+        self.update()
+
+    def get_user_vote(self, user: User):
+        """Returns user vote for the question. None if the user has not voted"""
+        if self.hasvoted(user):
+            return self.votes.filter_by(user=user).first().vote
+        else:
+            return None
+
+    def hasvoted(self, user: User) -> bool:
+        """Check wether a specific user has voted the question"""
+        return self.votes.filter_by(user=user).first() is not None
+
+    def format(self):
+        curr_user = User.query.filter_by(username=get_jwt_sub()).first()
+        return {
+            "id": self.id,
+            "user": self.user.format(),
+            "content": self.content,
+            "created_at": self.created_at,
+            "accepted_answer": self.accepted_answer,
+            "answers_count": len(self.answers),
+            "upvotes": self.votes.filter_by(vote=True).count(),
+            "downvotes": self.votes.filter_by(vote=False).count(),
+            # viewer vote will be True if upvote, False if downvote and None if the viewer has not voted
+            "viewer_vote": self.get_user_vote(curr_user) if curr_user else None,
+        }
+
+
+class Answer(db.Model, BaseModel):
+    __tablename__ = "answers"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(), default=datetime.utcnow, nullable=False)
+
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
+
+    def __init__(self, user_id: int, question_id: int, content: str):
+        self.user_id = user_id
+        self.content = content
+        self.question_id = question_id
+
+    def vote(self, user: User, vote: bool):
+        """upvote or downvote a question"""
+        if self.hasvoted(user):
+            # update the vote itself if the user has already voted
+            vote_obj = self.votes.filter_by(user=user).first()
+            vote_obj.vote = vote
+        else:
+            # working with the association pattern as detailed in the docs
+            # ref: https://docs.sqlalchemy.org/en/14/orm/basic_relationships.html
+            vote = AnswerVote(vote=vote)
+            vote.user = user
+            self.votes.append(vote)
+        # update in either cases
+        self.update()
+
+    def unvote(self, user: User):
+        """remove specific user vote"""
+        self.votes.filter_by(user=user).delete()
+        self.update()
+
+    def get_user_vote(self, user: User):
+        """Returns user vote for the question. None if the user has not voted"""
+        if self.hasvoted(user):
+            return self.votes.filter_by(user=user).first().vote
+        else:
+            return None
+
+    def hasvoted(self, user: User) -> bool:
+        """Check wether a specific user has voted the question"""
+        return self.votes.filter_by(user=user).first() is not None
+
+    def format(self):
+        curr_user = User.query.filter_by(username=get_jwt_sub()).first()
+        return {
+            "id": self.id,
+            "user": self.user.format(),
+            "question_id": self.question_id,
+            "content": self.content,
+            "created_at": self.created_at,
+            # viewer vote will be True if upvote, False if downvote and None if the viewer has not voted
+            "upvotes": self.votes.filter_by(vote=True).count(),
+            "downvotes": self.votes.filter_by(vote=False).count(),
+            "viewer_vote": self.get_user_vote(curr_user) if curr_user else None,
+        }
+
+
+roles_permissions = db.Table(
+    "roles_permissions",
+    Column("role_id", Integer, ForeignKey("roles.id"), nullable=False),
+    Column("permission_id", Integer, ForeignKey("permissions.id"), nullable=False),
+)
+
+
+class Role(db.Model, BaseModel):
+    __tablename__ = "roles"
+    id = Column(Integer, primary_key=True)
+    name = Column(VARCHAR(20), nullable=False, unique=True)
+    permissions = db.relationship(
+        "Permission", secondary=roles_permissions, backref="roles", lazy=True
+    )
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def format(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
+
+
+class Permission(db.Model, BaseModel):
+    __tablename__ = "permissions"
+    id = Column(Integer, primary_key=True)
+    name = Column(VARCHAR(40), nullable=False, unique=True)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def format(self):
+        return {"id": self.id, "name": self.name}
+
+
+class Notification(db.Model, BaseModel):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    url = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(), default=datetime.utcnow, nullable=False)
+
+    def __init__(self, user_id: int, content: str, url: str):
+        self.user_id = user_id
+        self.content = content
+        self.url = url
+
+    def format(self):
+        return {
+            "id": self.id,
+            "content": self.content,
+            "url": self.url,
+            "is_read": self.is_read,
             "created_at": self.created_at,
         }
