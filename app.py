@@ -687,3 +687,5 @@ def create_app(config=ProductionConfig):
         superamdin.insert()
 
     return app
+
+app = create_app()
