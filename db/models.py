@@ -10,9 +10,8 @@ from sqlalchemy import (
     VARCHAR,
     Text,
     Boolean,
-    LONGBLOB,
 )
-from sqlalchemy.dialects.mysql import BOOLEAN
+from sqlalchemy.dialects.mysql import BOOLEAN, LONGBLOB
 from sqlalchemy.exc import SQLAlchemyError as exc
 import bcrypt
 from datetime import datetime
