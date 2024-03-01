@@ -12,7 +12,7 @@ class Config(object):
     EMAIL_PATTERN = "^([\w\.\-]+)@([\w\-]+)((\.(\w){2,3})+)$"
     PHONE_PATTERN = "^\+(?:[0-9]){6,14}[0-9]$"
 
-    UPLOAD_FOLDER = "uploads"
+    UPLOAD_FOLDER = os.path.join(basedir, "uploads")
     ALLOWED_EXTENSIONS = {'png', 'jpg'}
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024
 
