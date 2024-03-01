@@ -167,9 +167,9 @@ def create_app(config=ProductionConfig):
         user = User.query.filter_by(username=get_jwt_sub()).first()
         # updating user data
         if "first_name" in data:
-            user.first_name = str(data["first_name"]).lower().strip()
+            user.first_name = str(data["first_name"]).strip()
         if "last_name" in data:
-            user.last_name = str(data["last_name"]).lower().strip()
+            user.last_name = str(data["last_name"]).strip()
         if "email" in data:
             email = str(data["email"]).lower().strip()
             if User.query.filter_by(email=email).one_or_none():
@@ -196,9 +196,9 @@ def create_app(config=ProductionConfig):
                 abort(422, "Phone is not valid")
             user.phone = phone
         if "job" in data:
-            user.job = str(data["job"]).lower().strip()
+            user.job = str(data["job"]).strip()
         if "bio" in data:
-            user.bio = str(data["bio"]).lower().strip()
+            user.bio = str(data["bio"]).strip()
         if "avatar" in data:
             if data["avatar"] == "":
                 user.avatar = ""
@@ -279,7 +279,7 @@ def create_app(config=ProductionConfig):
         )
 
     @app.get("/api/questions")
-    @requires_auth(optional=True)
+    @requires_auth()
     def get_questions():
         search_term = request.args.get("searchTerm", "", str)
         query = Question.query.order_by(Question.created_at.desc())
@@ -302,7 +302,7 @@ def create_app(config=ProductionConfig):
         )
 
     @app.get("/api/questions/<int:question_id>")
-    @requires_auth(optional=True)
+    @requires_auth()
     def show_question(question_id):
         question = Question.query.get(question_id)
         if question is None:
@@ -310,7 +310,7 @@ def create_app(config=ProductionConfig):
         return jsonify({"success": True, "data": question.format()})
 
     @app.get("/api/questions/<int:question_id>/answers")
-    @requires_auth(optional=True)
+    @requires_auth()
     def get_question_answers(question_id):
         question = Question.query.get(question_id)
         if question is None:
