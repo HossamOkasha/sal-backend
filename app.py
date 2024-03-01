@@ -198,8 +198,11 @@ def create_app(config=ProductionConfig):
         if 'bio' in data:
             user.bio = str(data['bio']).lower().strip()
         if 'avatar' in data:
-            if not path.isfile(path.join(app.config['UPLOAD_FOLDER'], data['avatar'])):
-                abort(422, "Avatar is not valid")
+            if data['avatar'] is None:
+                user.avatar = None
+            else:
+                if not path.isfile(path.join(app.config['UPLOAD_FOLDER'], data['avatar'])):
+                    abort(422, "Avatar is not valid")
             user.avatar = data['avatar']
 
         try:
