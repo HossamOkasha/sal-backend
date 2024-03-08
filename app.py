@@ -172,7 +172,9 @@ def create_app(config=ProductionConfig):
             user.last_name = str(data["last_name"]).strip()
         if "email" in data:
             email = str(data["email"]).lower().strip()
-            if User.query.filter_by(email=email).one_or_none():
+            if User.query.filter(
+                User.email == email, User.username != user.username
+            ).one_or_none():
                 abort(422, "Email is already in use")
             if re.match(app.config["EMAIL_PATTERN"], email) is None:
                 abort(422, "Email is not valid")
